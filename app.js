@@ -1,6 +1,14 @@
 (() => {
   'use strict';
 
+  // 萬一程式出錯，直接把原因顯示在畫面上，不要卡在「準備中」
+  window.addEventListener('error', (e) => {
+    try {
+      const el = document.querySelector('#status');
+      if (el) { el.textContent = '程式錯誤：' + (e.message || '未知'); el.classList.add('err'); }
+    } catch (x) { /* 忽略 */ }
+  });
+
   const $ = (s) => document.querySelector(s);
   const video = $('#video');
   const statusEl = $('#status');
@@ -380,12 +388,14 @@
 
   // ---------- OTP ----------
   const MASK = '•••• •••• •••• ••••';
+  const on = (el, ev, fn) => { if (el) el.addEventListener(ev, fn); };
 
   function groupSecret(s) {
     return s.replace(/(.{4})/g, '$1 ').trim();
   }
 
   function renderOtp() {
+    if (!otpBox) return; // index.html 若是舊版（沒有 OTP 區塊），就略過
     otpBox.classList.toggle('hidden', otpAccounts.length === 0);
     otpList.textContent = '';
     otpAccounts.forEach((a) => {
@@ -448,6 +458,10 @@
   }
 
   function handleOtp(text) {
+    if (!otpBox) { // index.html 若是舊版，改以一般文字顯示
+      showResult(text, false, Date.now());
+      return;
+    }
     let parsed = null;
     try {
       parsed = window.OtpParse && window.OtpParse.parseOtp(text);
@@ -507,13 +521,13 @@
     }
   }
 
-  otpNext.addEventListener('click', resumeScan);
-  otpCopyAll.addEventListener('click', async () => {
+  on(otpNext, 'click', resumeScan);
+  on(otpCopyAll, 'click', async () => {
     const text = window.OtpParse.formatBackup(otpAccounts, fmt(Date.now()));
     toast((await copyText(text)) ? '已複製全部' : '複製失敗');
   });
-  otpShare.addEventListener('click', shareBackup);
-  otpClear.addEventListener('click', () => {
+  on(otpShare, 'click', shareBackup);
+  on(otpClear, 'click', () => {
     if (!window.confirm('確定要清除畫面上的 OTP 資料嗎？清除後需要重新掃描。')) return;
     otpAccounts = [];
     otpBatch = null;
