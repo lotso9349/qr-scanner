@@ -1,5 +1,5 @@
-// 改了任何檔案後，請把版本號 +1（例如 qr-scan-v2），手機才會更新快取
-const VERSION = 'qr-scan-v2';
+// 改了這支 sw.js 以外的檔案時，建議把版本號 +1（例如 qr-scan-v4），讓手機重新下載全部檔案
+const VERSION = 'qr-scan-v3';
 const CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
 const LOCAL_FILES = [
   './',
@@ -31,24 +31,36 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// 策略：先用快取（離線也能開），同時在背景抓最新版放進快取，下次開啟就會是新版
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const sameOrigin = new URL(req.url).origin === self.location.origin;
+
   event.respondWith((async () => {
-    const hit = await caches.match(event.request, { ignoreSearch: true });
-    if (hit) return hit;
-    try {
-      const res = await fetch(event.request);
-      if (res && (res.ok || res.type === 'opaque')) {
-        const cache = await caches.open(VERSION);
-        cache.put(event.request, res.clone());
+    const cache = await caches.open(VERSION);
+    const hit = await cache.match(req, { ignoreSearch: true });
+
+    const refresh = (async () => {
+      try {
+        const res = sameOrigin ? await fetch(req.url, { cache: 'no-cache' }) : await fetch(req);
+        if (res && (res.ok || res.type === 'opaque')) await cache.put(req, res.clone());
+        return res;
+      } catch (err) {
+        return null; // 離線時抓不到，沿用快取
       }
-      return res;
-    } catch (err) {
-      if (event.request.mode === 'navigate') {
-        const fallback = await caches.match('./index.html');
-        if (fallback) return fallback;
-      }
-      throw err;
+    })();
+
+    if (hit) {
+      event.waitUntil(refresh);
+      return hit;
     }
+    const res = await refresh;
+    if (res) return res;
+    if (req.mode === 'navigate') {
+      const fallback = await cache.match('./index.html');
+      if (fallback) return fallback;
+    }
+    return Response.error();
   })());
 });
