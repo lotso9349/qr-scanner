@@ -1,10 +1,11 @@
 // 改了任何檔案後，請把版本號 +1（例如 qr-scan-v2），手機才會更新快取
-const VERSION = 'qr-scan-v1';
+const VERSION = 'qr-scan-v2';
 const CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
 const LOCAL_FILES = [
   './',
   './index.html',
   './app.js',
+  './otp.js',
   './manifest.json',
   './icon-180.png',
   './icon-192.png',
@@ -15,7 +16,8 @@ const LOCAL_FILES = [
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(VERSION);
-    await Promise.all(LOCAL_FILES.map((url) => cache.add(url).catch(() => {})));
+    // cache: 'reload' 會略過瀏覽器的舊快取，確保拿到剛上傳的新檔案
+    await Promise.all(LOCAL_FILES.map((url) => cache.add(new Request(url, { cache: 'reload' })).catch(() => {})));
     await cache.add(new Request(CDN, { mode: 'no-cors' })).catch(() => {});
     await self.skipWaiting();
   })());
